@@ -14,7 +14,6 @@ def evaluate_dictionary_attack():
         print(f"❌ '{rockyou_file}' 파일이 없습니다.")
         return
 
-    # 퍼플렉시티 제거 완료
     target_files = [
         "BaseLine/baseline_simple_passwords.csv",
         "Simple/Claude/claude_simple_fixed_passwords.csv",
@@ -26,33 +25,46 @@ def evaluate_dictionary_attack():
     print("=" * 70)
 
     for file_path in target_files:
-        # 파일이 존재하지 않으면 에러 없이 깔끔하게 건너뜀
         if not os.path.exists(file_path):
             continue
 
-        total_count = 0
-        leaked_count = 0
-        leaked_examples = []
+        # 길이별로 데이터를 따로 모으기 위한 딕셔너리
+        stats_by_length = {8: {'total': 0, 'leaked': 0, 'examples': []},
+                           12: {'total': 0, 'leaked': 0, 'examples': []},
+                           16: {'total': 0, 'leaked': 0, 'examples': []}}
 
         with open(file_path, mode='r', encoding='utf-8-sig') as file:
             reader = csv.DictReader(file)
             for row in reader:
                 pwd = row['Password']
-                total_count += 1
+                length = int(row['Length'])
+
+                if length not in stats_by_length:
+                    stats_by_length[length] = {'total': 0, 'leaked': 0, 'examples': []}
+
+                stats_by_length[length]['total'] += 1
 
                 if pwd in rockyou_set:
-                    leaked_count += 1
-                    if len(leaked_examples) < 3:
-                        leaked_examples.append(pwd)
+                    stats_by_length[length]['leaked'] += 1
+                    if len(stats_by_length[length]['examples']) < 3:
+                        stats_by_length[length]['examples'].append(pwd)
 
-        if total_count > 0:
-            leak_rate = (leaked_count / total_count) * 100
-            print(f"📁 {file_path.split('/')[-1]}")
-            print(f"   - 총 검사 개수: {total_count}개")
-            print(f"   - 유출 발견: {leaked_count}개 (위험도: {leak_rate:.2f}%)")
-            if leaked_examples:
-                print(f"   - 유출 예시: {', '.join(leaked_examples)} ...")
-            print("-" * 70)
+        print(f"📁 {file_path.split('/')[-1]}")
+
+        # 길이별 통계 출력
+        for length in sorted(stats_by_length.keys()):
+            stats = stats_by_length[length]
+            total = stats['total']
+            leaked = stats['leaked']
+
+            if total > 0:
+                leak_rate = (leaked / total) * 100
+                print(f"   [길이: {length}자]")
+                print(f"     - 총 검사 개수: {total}개")
+                print(f"     - 유출 발견: {leaked}개 (위험도: {leak_rate:.2f}%)")
+                if stats['examples']:
+                    print(f"     - 유출 예시: {', '.join(stats['examples'])} ...")
+        print("-" * 70)
 
 
 if __name__ == "__main__":
